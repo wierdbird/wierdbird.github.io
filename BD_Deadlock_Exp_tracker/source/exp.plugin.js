@@ -2,7 +2,7 @@
  * @name Deadlock Experimental Tracker
  * @author Kiwi
  * @description Tracks the live build version of Steam App 3488080 via the official Steam IGCVersion API. Shows daily build delta (midnight reset). WITH SOUND
- * @version 6.1.0
+ * @version 6.1.1
  * @updaterUrl https://wierdbird.github.io/BD_Deadlock_Exp_tracker/source/exp.plugin.js
  */
 
