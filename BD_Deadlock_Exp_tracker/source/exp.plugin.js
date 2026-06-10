@@ -2,7 +2,7 @@
  * @name Deadlock Experimental Tracker
  * @author Kiwi
  * @description Tracks the live build version of Steam App 3488080 via the official Steam IGCVersion API. Shows daily build delta (midnight reset). WITH SOUND
- * @version 6.0.0
+ * @version 7.0.1
  * @website https://github.com/wierdbird/wierdbird.github.io/tree/main/BD_Deadlock_Exp_tracker/source
  * @updateUrl https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js
  */
@@ -40,6 +40,94 @@ module.exports = class SteamBuildTracker {
         this.stopTracking();
         if (this.widget)  { this.widget.remove();  this.widget  = null; }
         if (this.styleEl) { this.styleEl.remove(); this.styleEl = null; }
+    }
+
+    // ─── Auto-Update ──────────────────────────────────────────────────────────
+
+    // BD's built-in updater reads @version and @updateUrl from the JSDoc header.
+    // getSettingsPanel() is required for BD to show the plugin in the updater UI.
+    getSettingsPanel() {
+        const panel = document.createElement("div");
+        panel.style.cssText = "padding:12px;font-family:Consolas,monospace;color:#c9cdd3;font-size:12px;";
+
+        const currentVer = this._getMeta("version") || "unknown";
+        panel.innerHTML = `
+            <div style="margin-bottom:10px;font-weight:700;color:#7114e3;letter-spacing:1px;">DEADLOCK EXPERIMENTAL TRACKER</div>
+            <div style="margin-bottom:6px;">Current version: <span style="color:#fff;">${currentVer}</span></div>
+            <div id="sbt-update-status" style="color:#5c6068;font-size:11px;">Click below to check for updates.</div>
+            <button id="sbt-update-btn" style="margin-top:10px;padding:4px 12px;background:none;border:1px solid #3c3f45;border-radius:4px;color:#c9cdd3;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:0.5px;">
+                CHECK FOR UPDATE
+            </button>
+        `;
+
+        panel.querySelector("#sbt-update-btn").addEventListener("click", () => {
+            const statusEl = panel.querySelector("#sbt-update-status");
+            statusEl.style.color = "#f0b232";
+            statusEl.textContent = "Checking…";
+            this.checkForUpdates((msg, isNew) => {
+                statusEl.style.color = isNew ? "#23a55a" : "#5c6068";
+                statusEl.textContent = msg;
+            });
+        });
+
+        return panel;
+    }
+
+    _getMeta(key) {
+        // Parse JSDoc meta tags from the plugin source
+        try {
+            const match = new RegExp(`@${key}\s+([^\n*]+)`).exec(module.exports.toString());
+            return match ? match[1].trim() : null;
+        } catch { return null; }
+    }
+
+    checkForUpdates(cb) {
+        const updateUrl = "https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js";
+        const currentVersion = "7.0.0";
+
+        BdApi.Net.fetch(updateUrl, { method: "GET" })
+            .then(r => r.text())
+            .then(text => {
+                const match = /@version\s+([^\n*]+)/.exec(text);
+                if (!match) return cb && cb("Could not parse remote version.", false);
+
+                const remoteVersion = match[1].trim();
+                const isNewer = this._versionIsNewer(remoteVersion, currentVersion);
+
+                if (isNewer) {
+                    BdApi.showConfirmationModal(
+                        "Update Available",
+                        `Deadlock Experimental Tracker v${remoteVersion} is available (you have v${currentVersion}). Download and replace the plugin file?`,
+                        {
+                            confirmText: "Open Download",
+                            cancelText: "Later",
+                            onConfirm: () => {
+                                // Open the raw file URL so user can save it
+                                window.open(updateUrl, "_blank");
+                            }
+                        }
+                    );
+                    cb && cb(`v${remoteVersion} available!`, true);
+                } else {
+                    cb && cb(`Up to date (v${currentVersion})`, false);
+                }
+            })
+            .catch(err => {
+                console.error("[SteamBuildTracker] Update check failed:", err);
+                cb && cb("Update check failed.", false);
+            });
+    }
+
+    _versionIsNewer(remote, current) {
+        const parse = v => v.split(".").map(Number);
+        const r = parse(remote);
+        const c = parse(current);
+        for (let i = 0; i < Math.max(r.length, c.length); i++) {
+            const rv = r[i] || 0, cv = c[i] || 0;
+            if (rv > cv) return true;
+            if (rv < cv) return false;
+        }
+        return false;
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -182,7 +270,7 @@ module.exports = class SteamBuildTracker {
         }
 
         const maxBars = 10;
-        const points  = history.slice(-maxBars);
+        const points  = history.slice(-maxBars).slice(0, maxBars); // hard cap
         const n       = points.length;
 
         const padT  = 18;
@@ -367,7 +455,10 @@ module.exports = class SteamBuildTracker {
 
         this.widget.innerHTML = `
             <div id="sbt-header">
-                <span id="sbt-title">Experimental Tracker</span>
+                <div style="display:flex;flex-direction:column;gap:1px;">
+                    <span id="sbt-title">Experimental Tracker</span>
+                    <span id="sbt-version-label" style="font-size:8px;color:#3c3f45;letter-spacing:0.5px;">v6.0.0</span>
+                </div>
                 <span id="sbt-appid">APP ${this.appId}</span>
             </div>
             <div id="sbt-status-row">
@@ -594,24 +685,6 @@ module.exports = class SteamBuildTracker {
         // Seed known historical data if no history saved yet
         if (this.dailyHistory.length === 0) {
             this.dailyHistory = [
-                { date: "2026-05-11", delta: 0  },
-                { date: "2026-05-12", delta: 0  },
-                { date: "2026-05-13", delta: 31 },
-                { date: "2026-05-14", delta: 0  },
-                { date: "2026-05-15", delta: 0  },
-                { date: "2026-05-16", delta: 9  },
-                { date: "2026-05-17", delta: 3  },
-                { date: "2026-05-18", delta: 6  },
-                { date: "2026-05-19", delta: 6  },
-                { date: "2026-05-20", delta: 4  },
-                { date: "2026-05-21", delta: 9  },
-                { date: "2026-05-22", delta: 18 },
-                { date: "2026-05-23", delta: 2  },
-                { date: "2026-05-24", delta: 8  },
-                { date: "2026-05-25", delta: 6  },
-                { date: "2026-05-26", delta: 0  },
-                { date: "2026-05-27", delta: 5  },
-                { date: "2026-05-28", delta: 0  },
                 { date: "2026-05-29", delta: 5  },
                 { date: "2026-05-30", delta: 0  },
                 { date: "2026-05-31", delta: 4  },
@@ -620,6 +693,7 @@ module.exports = class SteamBuildTracker {
                 { date: "2026-06-03", delta: 15 },
                 { date: "2026-06-04", delta: 6  },
                 { date: "2026-06-05", delta: 0  },
+                { date: "2026-06-06", delta: 5  },
             ];
         }
 
