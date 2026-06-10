@@ -270,7 +270,30 @@ module.exports = class SteamBuildTracker {
         }
 
         const maxBars = 10;
-        const points  = history.slice(-maxBars).slice(0, maxBars); // hard cap
+
+        // Fill in any missing dates between first and last entry with delta 0
+        const fillGaps = (entries) => {
+            if (entries.length === 0) return entries;
+            const result = [];
+            const msPerDay = 86400000;
+            for (let i = 0; i < entries.length; i++) {
+                result.push(entries[i]);
+                if (i < entries.length - 1) {
+                    const cur  = new Date(entries[i].date);
+                    const next = new Date(entries[i + 1].date);
+                    let d = new Date(cur.getTime() + msPerDay);
+                    while (d < next) {
+                        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+                        result.push({ date: key, delta: 0 });
+                        d = new Date(d.getTime() + msPerDay);
+                    }
+                }
+            }
+            return result;
+        };
+
+        const filled = fillGaps(history);
+        const points = filled.slice(-maxBars).slice(0, maxBars); // hard cap
         const n       = points.length;
 
         const padT  = 18;
@@ -457,7 +480,7 @@ module.exports = class SteamBuildTracker {
             <div id="sbt-header">
                 <div style="display:flex;flex-direction:column;gap:1px;">
                     <span id="sbt-title">Experimental Tracker</span>
-                    <span id="sbt-version-label" style="font-size:8px;color:#3c3f45;letter-spacing:0.5px;">v6.0.0</span>
+                    <span id="sbt-version-label" style="font-size:8px;color:#3c3f45;letter-spacing:0.5px;">v${this._getMeta("version") || "7.0.0"}</span>
                 </div>
                 <span id="sbt-appid">APP ${this.appId}</span>
             </div>
@@ -682,32 +705,7 @@ module.exports = class SteamBuildTracker {
             }
         } catch (e) { console.log("[SteamBuildTracker] Using default settings."); }
 
-        // Seed known historical data if no history saved yet
-        if (this.dailyHistory.length === 0) {
-            this.dailyHistory = [
-                { date: "2026-05-29", delta: 5  },
-                { date: "2026-05-30", delta: 0  },
-                { date: "2026-05-31", delta: 4  },
-                { date: "2026-06-01", delta: 0  },
-                { date: "2026-06-02", delta: 13 },
-                { date: "2026-06-03", delta: 15 },
-                { date: "2026-06-04", delta: 6  },
-                { date: "2026-06-05", delta: 0  },
-                { date: "2026-06-06", delta: 5  },
-            ];
-        }
 
-        // Always ensure ATH is at least 36 (known record) — live data will push it higher if beaten
-        if (this.allTimeHighDelta < 36) {
-            this.allTimeHighDelta = 36;
-        }
-
-        // Seed baseline state if nothing was saved
-        if (this.dayBaseVersion === null) {
-            this.dayBaseVersion = 1783;
-            this.lastVersion    = 1783;
-            this.dayKey         = this.todayKey();
-        }
     }
 
     saveSettings() {
