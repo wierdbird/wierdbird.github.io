@@ -1,9 +1,9 @@
 /**
- * @name SteamBuildTracker
+ * @name Deadlock Experimental Tracker
  * @author Kiwi
  * @description Tracks the live build version of Steam App 3488080 via the official Steam IGCVersion API. Shows daily build delta (midnight reset). WITH SOUND
- * @version 6.1.1
- * @website https://github.com/wierdbird/wierdbird.github.io/tree/main/BD_Deadlock_Exp_tracker
+ * @version 6.1.0
+ * @website https://github.com/wierdbird/wierdbird.github.io/tree/main/BD_Deadlock_Exp_tracker/source
  * @updateUrl https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js
  */
 
@@ -17,13 +17,16 @@ module.exports = class SteamBuildTracker {
         this.styleEl  = null;
         this.isDragging = false;
 
+        // Runtime state
         this.lastVersion       = null;
         this.dayBaseVersion    = null;
         this.dayKey            = null;
         this.allTimeHighDelta  = 0;
         this.advancedMode      = false;
-        this.pos               = { x: 40, y: 60 };
+        this.pos               = { x: 40, y: 100 };
         this._lastMinVersion   = null;
+
+        // Historical daily deltas: array of { date: "YYYY-MM-DD", delta: number }
         this.dailyHistory      = [];
     }
 
@@ -77,13 +80,13 @@ module.exports = class SteamBuildTracker {
             const result = json?.result;
 
             if (result && result.success) {
-                const version    = result.active_version      != null ? Number(result.active_version)      : null;
-                const minVersion = result.min_allowed_version != null ? Number(result.min_allowed_version) : null;
+                const version    = result.active_version       != null ? Number(result.active_version)       : null;
+                const minVersion = result.min_allowed_version  != null ? Number(result.min_allowed_version)  : null;
 
                 if (version !== null) {
                     const today = this.todayKey();
 
-                    // New day — save yesterday's delta then reset baseline
+                    // New day — reset baseline
                     if (this.dayKey !== today) {
                         if (this.dayKey && this.dayBaseVersion !== null && this.lastVersion !== null) {
                             this._upsertDailyHistory(this.dayKey, this.lastVersion - this.dayBaseVersion);
@@ -107,7 +110,6 @@ module.exports = class SteamBuildTracker {
 
                     this._upsertDailyHistory(today, delta);
 
-                    // Update ATH if this delta beats the record
                     if (delta > this.allTimeHighDelta) {
                         this.allTimeHighDelta = delta;
                     }
@@ -157,8 +159,6 @@ module.exports = class SteamBuildTracker {
         }
     }
 
-    // ─── Graph ────────────────────────────────────────────────────────────────
-
     renderGraph() {
         const canvas = this.widget && this.widget.querySelector("#sbt-graph");
         if (!canvas) return;
@@ -181,12 +181,12 @@ module.exports = class SteamBuildTracker {
             return;
         }
 
-        const maxBars = 10;
+        const maxBars = Math.floor(W / 14);
         const points  = history.slice(-maxBars);
         const n       = points.length;
 
-        const padT  = 18;
-        const padB  = 14;
+        const padT  = 18; 
+        const padB  = 14; 
         const padLR = 4;
         const innerW = W - padLR * 2;
         const innerH = H - padT - padB;
@@ -206,23 +206,32 @@ module.exports = class SteamBuildTracker {
             const bH = delta > 0 ? Math.max(2, Math.round((delta / maxD) * innerH)) : 2;
             const y  = padT + innerH - bH;
 
-            // ATH bar is gold, active bars white, zero bars near-invisible
-            const isATH = delta > 0 && delta === this.allTimeHighDelta;
-            ctx.fillStyle = isATH ? "#f0b232" : (delta === 0 ? "#1e2030" : "#ffffff");
+            const isATH = delta === this.allTimeHighDelta;
+            
+            if (delta === 0) {
+                ctx.fillStyle = isATH ? "#f0b232" : "#1e2030";
+            } else {
+                ctx.fillStyle = isATH ? "#038028" : "#ffffff";
+            }
+            
             ctx.fillRect(x, y, barW, bH);
 
-            // Delta label above bar
             const label = delta === 0 ? "0" : (delta > 0 ? "+" + delta : String(delta));
             ctx.font      = "7px Consolas, monospace";
             ctx.textAlign = "center";
-            ctx.fillStyle = isATH ? "#f0b232" : (delta === 0 ? "#2a2d33" : "#9ba3b8");
+            
+            if (delta === 0) {
+                ctx.fillStyle = isATH ? "#f0b232" : "#2a2d33";
+            } else {
+                ctx.fillStyle = isATH ? "#038028" : "#9ba3b8";
+            }
+            
             ctx.fillText(label, x + barW / 2, Math.max(y - 2, padT - 2));
 
-            // Date label below
             const [, mm, dd] = date.split("-");
-            const dayNum    = parseInt(dd, 10);
+            const dayNum   = parseInt(dd, 10);
             const dateLabel = (dayNum === 1 || i === 0) ? `${parseInt(mm)}/${dayNum}` : String(dayNum);
-            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = "#3c3f45";
             ctx.font      = "7px Consolas, monospace";
             ctx.fillText(dateLabel, x + barW / 2, H - 2);
         }
@@ -234,125 +243,130 @@ module.exports = class SteamBuildTracker {
         this.styleEl = document.createElement("style");
         this.styleEl.id = "steam-build-tracker-styles";
         this.styleEl.textContent = `
-        #sbt-widget {
-            position: fixed;
-            width: 260px;
-            background: #0d0e10;
-            border: 1px solid #1a1c1f;
-            border-radius: 10px;
-            z-index: 99999;
-            color: #c9cdd3;
-            font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
-            font-size: 12px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
-            overflow: hidden;
-            cursor: grab;
-            user-select: none;
-            transition: box-shadow 0.15s ease;
-        }
-        #sbt-widget:hover {
-            box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(88,101,242,0.3);
-        }
-        #sbt-widget.dragging {
-            cursor: grabbing;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(88,101,242,0.5);
-        }
-        #sbt-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 14px 8px;
-            border-bottom: 1px solid #1a1c1f;
-            background: #111214;
-        }
-        #sbt-title  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #7114e3; text-transform: uppercase; }
-        #sbt-appid  { font-size: 9px; color: #3c3f45; letter-spacing: 0.5px; }
-        #sbt-status-row {
-            display: flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-bottom: 1px solid #1a1c1f;
-        }
-        #sbt-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: #038028; flex-shrink: 0; transition: background 0.3s ease;
-        }
-        #sbt-dot.error    { background: #b80206; animation: none; }
-        #sbt-dot.live     { background: #038028; animation: sbt-pulse 2s infinite; }
-        #sbt-dot.fetching { background: #f0b232; animation: sbt-blink 0.8s infinite; }
-        @keyframes sbt-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
-        @keyframes sbt-blink { 0%,100%{opacity:1} 50%{opacity:0.2}  }
-        #sbt-status-text { font-size: 10px; letter-spacing: 1px; color: #5c6068; font-weight: 600; }
-        #sbt-status-text.live  { color: #038028; }
-        #sbt-status-text.error { color: #b80206; }
-        #sbt-body {
-            padding: 10px 14px 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 12px;
-        }
-        .sbt-field { }
-        .sbt-label {
-            font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
-            font-weight: 700; text-transform: uppercase; margin-bottom: 3px;
-        }
-        .sbt-value {
-            font-size: 20px; font-weight: 700; color: #ffffff;
-            line-height: 1; letter-spacing: -0.5px;
-        }
-        .sbt-value.changed { animation: sbt-flash 2s ease forwards; }
-        @keyframes sbt-flash {
-            0%   { color: #f0b232; text-shadow: 0 0 14px rgba(240,178,50,0.7); }
-            100% { color: #ffffff; text-shadow: none; }
-        }
-        .sbt-value.placeholder { color: #2a2d33; }
-        .sbt-value.delta-zero  { color: #5c6068; }
-        .sbt-value.delta-pos   { color: #23a55a; }
-        .sbt-value.delta-neg   { color: #b50206; }
-        .sbt-value.delta-ath   { color: #f0b232; }
-        .sbt-value.small       { font-size: 14px; }
-        #sbt-advanced-section {
-            border-top: 1px solid #1a1c1f;
-            padding: 10px 14px 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 12px;
-            background: #0a0b0d;
-        }
-        #sbt-graph-section {
-            border-top: 1px solid #1a1c1f;
-            padding: 10px 14px 10px;
-            background: #080909;
-        }
-        #sbt-graph-label {
-            font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
-            font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
-        }
-        #sbt-graph {
-            display: block;
-            width: 100%;
-            height: 90px;
-            border-radius: 4px;
-        }
-        #sbt-error-msg {
-            font-size: 10px; color: #f23f43; margin-top: 4px;
-            display: none; word-break: break-all;
-            grid-column: 1 / -1;
-        }
-        #sbt-footer {
-            padding: 6px 14px 8px;
-            border-top: 1px solid #1a1c1f;
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 6px;
-        }
-        #sbt-time-label { font-size: 9px; color: #2a2d33; letter-spacing: 0.5px; }
-        #sbt-time       { font-size: 9px; color: #3c3f45; }
-        .sbt-btn {
-            background: none; border: 1px solid #1a1c1f; border-radius: 4px;
-            color: #3c3f45; font-size: 10px; padding: 2px 7px; cursor: pointer;
-            font-family: inherit; letter-spacing: 0.5px; transition: all 0.15s ease;
-            flex-shrink: 0;
-        }
-        .sbt-btn:hover  { border-color: #0212c2; color: #0212c2; background: rgba(2,18,194,0.08); }
-        .sbt-btn.active { border-color: #038028; color: #038028; background: rgba(3,128,40,0.08); }
+            #sbt-widget {
+                position: fixed;
+                width: 260px;
+                background: #0d0e10;
+                border: 1px solid #1a1c1f;
+                border-radius: 10px;
+                z-index: 99999;
+                color: #c9cdd3;
+                font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+                font-size: 12px;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+                overflow: hidden;
+                cursor: grab;
+                user-select: none;
+                transition: box-shadow 0.15s ease;
+            }
+            #sbt-widget:hover {
+                box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(88,101,242,0.3);
+            }
+            #sbt-widget.dragging {
+                cursor: grabbing;
+                box-shadow: 0 24px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(88,101,242,0.5);
+            }
+            #sbt-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 14px 8px;
+                border-bottom: 1px solid #1a1c1f;
+                background: #111214;
+            }
+            #sbt-title-container {
+                display: flex;
+                flex-direction: column;
+            }
+            #sbt-title  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #0212c2; text-transform: uppercase; }
+            #sbt-version-sub { font-size: 8px; color: #5c6068; margin-top: 1px; font-weight: 600; }
+            #sbt-appid  { font-size: 9px; color: #3c3f45; letter-spacing: 0.5px; }
+            #sbt-status-row {
+                display: flex; align-items: center; gap: 6px;
+                padding: 8px 14px; border-bottom: 1px solid #1a1c1f;
+            }
+            #sbt-dot {
+                width: 7px; height: 7px; border-radius: 50%;
+                background: #038028; flex-shrink: 0; transition: background 0.3s ease;
+            }
+            #sbt-dot.error    { background: #b80206; animation: none; }
+            #sbt-dot.live     { background: #038028; animation: sbt-pulse 2s infinite; }
+            #sbt-dot.fetching { background: #f0b232; animation: sbt-blink 0.8s infinite; }
+            @keyframes sbt-pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+            @keyframes sbt-blink { 0%,100%{opacity:1} 50%{opacity:0.2}  }
+            #sbt-status-text { font-size: 10px; letter-spacing: 1px; color: #5c6068; font-weight: 600; }
+            #sbt-status-text.live  { color: #038028; }
+            #sbt-status-text.error { color: #b80206; }
+            #sbt-body {
+                padding: 10px 14px 12px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px 12px;
+            }
+            .sbt-field { }
+            .sbt-label {
+                font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
+                font-weight: 700; text-transform: uppercase; margin-bottom: 3px;
+            }
+            .sbt-value {
+                font-size: 20px; font-weight: 700; color: #ffffff;
+                line-height: 1; letter-spacing: -0.5px;
+            }
+            .sbt-value.changed { animation: sbt-flash 2s ease forwards; }
+            @keyframes sbt-flash {
+                0%   { color: #f0b232; text-shadow: 0 0 14px rgba(240,178,50,0.7); }
+                100% { color: #ffffff; text-shadow: none; }
+            }
+            .sbt-value.placeholder { color: #2a2d33; }
+            .sbt-value.delta-zero  { color: #5c6068; }
+            .sbt-value.delta-pos   { color: #23a55a; }
+            .sbt-value.delta-neg   { color: #b50206; }
+            .sbt-value.delta-ath   { color: #f0b232; }
+            .sbt-value.small       { font-size: 14px; }
+            #sbt-advanced-section {
+                border-top: 1px solid #1a1c1f;
+                padding: 10px 14px 12px;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px 12px;
+                background: #0a0b0d;
+            }
+            #sbt-graph-section {
+                border-top: 1px solid #1a1c1f;
+                padding: 10px 14px 10px;
+                background: #080909;
+            }
+            #sbt-graph-label {
+                font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
+                font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
+            }
+            #sbt-graph {
+                display: block;
+                width: 100%;
+                height: 90px;
+                border-radius: 4px;
+            }
+            #sbt-error-msg {
+                font-size: 10px; color: #f23f43; margin-top: 4px;
+                display: none; word-break: break-all;
+                grid-column: 1 / -1;
+            }
+            #sbt-footer {
+                padding: 6px 14px 8px;
+                border-top: 1px solid #1a1c1f;
+                display: flex; align-items: center; justify-content: space-between;
+                gap: 6px;
+            }
+            #sbt-time-label { font-size: 9px; color: #2a2d33; letter-spacing: 0.5px; }
+            #sbt-time       { font-size: 9px; color: #3c3f45; }
+            .sbt-btn {
+                background: none; border: 1px solid #1a1c1f; border-radius: 4px;
+                color: #3c3f45; font-size: 10px; padding: 2px 7px; cursor: pointer;
+                font-family: inherit; letter-spacing: 0.5px; transition: all 0.15s ease;
+                flex-shrink: 0;
+            }
+            .sbt-btn:hover  { border-color: #0212c2; color: #0212c2; background: rgba(2,18,194,0.08); }
+            .sbt-btn.active { border-color: #038028; color: #038028; background: rgba(3,128,40,0.08); }
         `;
         document.head.appendChild(this.styleEl);
     }
@@ -367,7 +381,10 @@ module.exports = class SteamBuildTracker {
 
         this.widget.innerHTML = `
             <div id="sbt-header">
-                <span id="sbt-title">Experimental Tracker</span>
+                <div id="sbt-title-container">
+                    <span id="sbt-title">Experimental Tracker</span>
+                    <span id="sbt-version-sub">v6.1.0</span>
+                </div>
                 <span id="sbt-appid">APP ${this.appId}</span>
             </div>
             <div id="sbt-status-row">
@@ -433,15 +450,15 @@ module.exports = class SteamBuildTracker {
         const advSection   = this.widget.querySelector("#sbt-advanced-section");
         const graphSection = this.widget.querySelector("#sbt-graph-section");
         const advBtn       = this.widget.querySelector("#sbt-advanced-btn");
-        if (advSection)   advSection.style.display  = this.advancedMode ? "grid"  : "none";
-        if (graphSection) graphSection.style.display = this.advancedMode ? "block" : "none";
+        if (advSection)   advSection.style.display   = this.advancedMode ? "grid" : "none";
+        if (graphSection) graphSection.style.display  = this.advancedMode ? "block" : "none";
         if (advBtn)       advBtn.classList.toggle("active", this.advancedMode);
     }
 
     setFetching() {
         const dot    = this.widget?.querySelector("#sbt-dot");
         const status = this.widget?.querySelector("#sbt-status-text");
-        if (dot)    dot.className = "fetching";
+        if (dot)    dot.className    = "fetching";
         if (status) { status.textContent = "POLLING…"; status.className = ""; }
     }
 
@@ -450,7 +467,9 @@ module.exports = class SteamBuildTracker {
         const athEl    = this.widget.querySelector("#sbt-ath");
         const minVerEl = this.widget.querySelector("#sbt-minver");
         if (athEl) {
-            athEl.textContent = this.formatDelta(this.allTimeHighDelta);
+            athEl.textContent = this.allTimeHighDelta > 0
+                ? this.formatDelta(this.allTimeHighDelta)
+                : "±0";
         }
         if (minVerEl && this._lastMinVersion != null) {
             minVerEl.textContent = String(this._lastMinVersion);
@@ -509,8 +528,11 @@ module.exports = class SteamBuildTracker {
             const athEl    = this.widget.querySelector("#sbt-ath");
             const minVerEl = this.widget.querySelector("#sbt-minver");
 
-            if (athEl) athEl.textContent = this.formatDelta(this.allTimeHighDelta);
-
+            if (athEl) {
+                athEl.textContent = this.allTimeHighDelta > 0
+                    ? this.formatDelta(this.allTimeHighDelta)
+                    : "±0";
+            }
             if (minVerEl) {
                 if (isLive && minVersion != null) {
                     minVerEl.textContent = String(minVersion);
@@ -582,16 +604,15 @@ module.exports = class SteamBuildTracker {
         try {
             const saved = BdApi.Data.load("SteamBuildTracker", "settings");
             if (saved) {
-                if (saved.pos)                         this.pos              = saved.pos;
-                if (saved.dayKey)                      this.dayKey           = saved.dayKey;
-                if (saved.dayBaseVersion != null)      this.dayBaseVersion   = saved.dayBaseVersion;
-                if (saved.allTimeHighDelta != null)    this.allTimeHighDelta = saved.allTimeHighDelta;
-                if (saved.advancedMode != null)        this.advancedMode     = saved.advancedMode;
-                if (Array.isArray(saved.dailyHistory)) this.dailyHistory     = saved.dailyHistory;
+                if (saved.pos)                          this.pos              = saved.pos;
+                if (saved.dayKey)                       this.dayKey           = saved.dayKey;
+                if (saved.dayBaseVersion != null)       this.dayBaseVersion   = saved.dayBaseVersion;
+                if (saved.allTimeHighDelta != null)     this.allTimeHighDelta = saved.allTimeHighDelta;
+                if (saved.advancedMode != null)         this.advancedMode     = saved.advancedMode;
+                if (Array.isArray(saved.dailyHistory))  this.dailyHistory     = saved.dailyHistory;
             }
         } catch (e) { console.log("[SteamBuildTracker] Using default settings."); }
 
-        // Seed known historical data if no history saved yet
         if (this.dailyHistory.length === 0) {
             this.dailyHistory = [
                 { date: "2026-05-11", delta: 0  },
@@ -621,18 +642,16 @@ module.exports = class SteamBuildTracker {
                 { date: "2026-06-04", delta: 6  },
                 { date: "2026-06-05", delta: 0  },
             ];
-        }
+            
+            if (this.allTimeHighDelta < 36) {
+                this.allTimeHighDelta = 36;
+            }
 
-        // Always ensure ATH is at least 36 (known record) — live data will push it higher if beaten
-        if (this.allTimeHighDelta < 36) {
-            this.allTimeHighDelta = 36;
-        }
-
-        // Seed baseline state if nothing was saved
-        if (this.dayBaseVersion === null) {
-            this.dayBaseVersion = 1783;
-            this.lastVersion    = 1783;
-            this.dayKey         = this.todayKey();
+            if (this.dayBaseVersion === null) {
+                this.dayBaseVersion  = 1783;
+                this.lastVersion     = 1783;
+                this.dayKey          = this.todayKey();
+            }
         }
     }
 
