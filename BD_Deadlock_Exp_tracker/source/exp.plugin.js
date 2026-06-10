@@ -1,6 +1,6 @@
 /**
  * @name SteamBuildTracker
- * @author AI Collaborator
+ * @author Kiwi
  * @description Tracks the live build version of Steam App 3488080 via the official Steam IGCVersion API. Shows daily build delta (midnight reset). WITH SOUND
  * @version 6.1.1
  * @website https://github.com/wierdbird/wierdbird.github.io/tree/main/BD_Deadlock_Exp_tracker
