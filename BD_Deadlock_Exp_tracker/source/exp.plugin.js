@@ -26,7 +26,7 @@ module.exports = class SteamBuildTracker {
         this.pos               = { x: 40, y: 100 };
         this._lastMinVersion   = null;
 
-        // Historical daily deltas: array of { date: "YYYY-MM-DD", delta: number }
+        // Historical daily deltas
         this.dailyHistory      = [];
     }
 
@@ -37,12 +37,76 @@ module.exports = class SteamBuildTracker {
         this.injectStyles();
         this.createWidget();
         this.startTracking();
+        this.checkForPluginUpdates(); // Native update checker check on start
     }
 
     stop() {
         this.stopTracking();
         if (this.widget)  { this.widget.remove();  this.widget  = null; }
         if (this.styleEl) { this.styleEl.remove(); this.styleEl = null; }
+    }
+
+    // ─── Self Update System ───────────────────────────────────────────────────
+
+    async checkForPluginUpdates() {
+        try {
+            const rawUrl = "https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js";
+            const response = await BdApi.Net.fetch(rawUrl, { method: "GET", headers: { "Cache-Control": "no-cache" } });
+            if (!response.ok) return;
+
+            const text = await response.text();
+            const match = text.match(/@version\s+([0-9.]+)/);
+            if (!match) return;
+
+            const remoteVersion = match[1];
+            const localVersion = "6.1.0"; // Matches current meta string
+
+            if (this.isNewerVersion(localVersion, remoteVersion)) {
+                BdApi.UI.showNotice(`An update (v${remoteVersion}) is available for Deadlock Experimental Tracker! [Update Now]`, {
+                    type: "info",
+                    buttons: [{
+                        label: "Update Now",
+                        onClick: (closeNotice) => {
+                            this.downloadAndApplyUpdate(rawUrl);
+                            closeNotice();
+                        }
+                    }]
+                });
+            }
+        } catch (e) {
+            console.error("[SteamBuildTracker] Auto-update check failed:", e);
+        }
+    }
+
+    isNewerVersion(local, remote) {
+        const l = local.split(".").map(Number);
+        const r = remote.split(".").map(Number);
+        for (let i = 0; i < Math.max(l.length, r.length); i++) {
+            const lp = l[i] || 0;
+            const rp = r[i] || 0;
+            if (rp > lp) return true;
+            if (lp > rp) return false;
+        }
+        return false;
+    }
+
+    async downloadAndApplyUpdate(url) {
+        try {
+            const fs = require("fs");
+            const path = require("path");
+            const response = await BdApi.Net.fetch(url, { method: "GET" });
+            if (!response.ok) throw new Error("Failed to download update file.");
+
+            const code = await response.text();
+            const pluginsFolder = BdApi.Plugins.folder;
+            const filePath = path.join(pluginsFolder, "exp.plugin.js");
+
+            fs.writeFileSync(filePath, code, "utf-8");
+            BdApi.UI.showToast("Deadlock Experimental Tracker updated successfully!", { type: "success" });
+        } catch (e) {
+            console.error("[SteamBuildTracker] Update application failed:", e);
+            BdApi.UI.showToast("Update failed. Check console for details.", { type: "error" });
+        }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -86,7 +150,6 @@ module.exports = class SteamBuildTracker {
                 if (version !== null) {
                     const today = this.todayKey();
 
-                    // New day — reset baseline
                     if (this.dayKey !== today) {
                         if (this.dayKey && this.dayBaseVersion !== null && this.lastVersion !== null) {
                             this._upsertDailyHistory(this.dayKey, this.lastVersion - this.dayBaseVersion);
