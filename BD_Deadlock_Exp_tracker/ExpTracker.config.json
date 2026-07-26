@@ -1,0 +1,64 @@
+{
+    "settings": {
+        "pos": {
+            "x": 40,
+            "y": 100
+        },
+        "currentAppId": "3488080",
+        "advancedMode": false,
+        "appState": {
+            "1422450": {
+                "lastVersion": 6640,
+                "dayBaseVersion": 6640,
+                "dayKey": "2026-07-25",
+                "allTimeHighDelta": 0,
+                "dailyHistory": [
+                    {
+                        "date": "2026-07-25",
+                        "delta": 0
+                    }
+                ],
+                "_lastMinVersion": 6640
+            },
+            "3125160": {
+                "lastVersion": 5822,
+                "dayBaseVersion": 5822,
+                "dayKey": "2026-07-25",
+                "allTimeHighDelta": 0,
+                "dailyHistory": [
+                    {
+                        "date": "2026-07-25",
+                        "delta": 0
+                    }
+                ],
+                "_lastMinVersion": null
+            },
+            "3488080": {
+                "lastVersion": 1968,
+                "dayBaseVersion": 1968,
+                "dayKey": "2026-07-25",
+                "allTimeHighDelta": 36,
+                "dailyHistory": [
+                    {
+                        "date": "2026-07-25",
+                        "delta": 0
+                    }
+                ],
+                "_lastMinVersion": 1968
+            },
+            "3781850": {
+                "lastVersion": 24,
+                "dayBaseVersion": 24,
+                "dayKey": "2026-07-25",
+                "allTimeHighDelta": 0,
+                "dailyHistory": [
+                    {
+                        "date": "2026-07-25",
+                        "delta": 0
+                    }
+                ],
+                "_lastMinVersion": 24
+            }
+        }
+    }
+}
