@@ -1,30 +1,32 @@
 /**
- * @name Deadlock Experimental Tracker
+ * @name Deadlock API Tracker
  * @author Kiwi
- * @description Tracks the live build version of Steam App 3488080 via the official Steam IGCVersion API. Shows daily build delta (midnight reset). WITH SOUND
- * @version 7.0.1
- * @website https://github.com/wierdbird/wierdbird.github.io/tree/main/BD_Deadlock_Exp_tracker/source
- * @updateUrl https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js
+ * @description Tracks the live build version of multiple Steam Apps via the official Steam IGCVersion API. Switch apps with the dropdown. Shows daily build delta (midnight reset). WITH SOUND
+ * @version 7.5.1
  */
 
-module.exports = class SteamBuildTracker {
+const APP_DEFS = [
+    { id: "3488080", name: "Deadlock (Experimental)", url: "https://api.steampowered.com/IGCVersion_3488080/GetClientVersion/v1", sound: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg", soundDuration: null },
+    { id: "1422450", name: "Deadlock",                 url: "https://api.steampowered.com/IGCVersion_1422450/GetClientVersion/v1", sound: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg", soundDuration: null },
+{ id: "3781850", name: "Deadlock Canary",            url: "https://api.steampowered.com/IGCVersion_3781850/GetClientVersion/v1", sound: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg", soundDuration: 1 },
+{ id: "3125160", name: "Deadlock NDA", url: "https://api.steampowered.com/IGCVersion_3125160/GetServerVersion/v1", sound: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg", soundDuration: 1 },
+];
+
+module.exports = class ExpTracker {
     constructor() {
-        this.appId    = "3488080";
-        this.apiUrl   = "https://api.steampowered.com/IGCVersion_3488080/GetClientVersion/v1";
+        this.apps     = APP_DEFS;
+        this.currentAppId  = APP_DEFS[0].id;
         this.updateInterval = 30000;
         this.timer    = null;
         this.widget   = null;
         this.styleEl  = null;
         this.isDragging = false;
 
-        this.lastVersion       = null;
-        this.dayBaseVersion    = null;
-        this.dayKey            = null;
-        this.allTimeHighDelta  = 0;
-        this.advancedMode      = false;
-        this.pos               = { x: 40, y: 100 };
-        this._lastMinVersion   = null;
-        this.dailyHistory      = [];
+        this.advancedMode = false;
+        this.pos           = { x: 40, y: 100 };
+
+        // Per-app state, keyed by appId
+        this.appState = {};
     }
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -38,96 +40,9 @@ module.exports = class SteamBuildTracker {
 
     stop() {
         this.stopTracking();
+        if (this._onDocClick) { document.removeEventListener("mousedown", this._onDocClick); this._onDocClick = null; }
         if (this.widget)  { this.widget.remove();  this.widget  = null; }
         if (this.styleEl) { this.styleEl.remove(); this.styleEl = null; }
-    }
-
-    // ─── Auto-Update ──────────────────────────────────────────────────────────
-
-    // BD's built-in updater reads @version and @updateUrl from the JSDoc header.
-    // getSettingsPanel() is required for BD to show the plugin in the updater UI.
-    getSettingsPanel() {
-        const panel = document.createElement("div");
-        panel.style.cssText = "padding:12px;font-family:Consolas,monospace;color:#c9cdd3;font-size:12px;";
-
-        const currentVer = this._getMeta("version") || "unknown";
-        panel.innerHTML = `
-            <div style="margin-bottom:10px;font-weight:700;color:#7114e3;letter-spacing:1px;">DEADLOCK EXPERIMENTAL TRACKER</div>
-            <div style="margin-bottom:6px;">Current version: <span style="color:#fff;">${currentVer}</span></div>
-            <div id="sbt-update-status" style="color:#5c6068;font-size:11px;">Click below to check for updates.</div>
-            <button id="sbt-update-btn" style="margin-top:10px;padding:4px 12px;background:none;border:1px solid #3c3f45;border-radius:4px;color:#c9cdd3;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:0.5px;">
-                CHECK FOR UPDATE
-            </button>
-        `;
-
-        panel.querySelector("#sbt-update-btn").addEventListener("click", () => {
-            const statusEl = panel.querySelector("#sbt-update-status");
-            statusEl.style.color = "#f0b232";
-            statusEl.textContent = "Checking…";
-            this.checkForUpdates((msg, isNew) => {
-                statusEl.style.color = isNew ? "#23a55a" : "#5c6068";
-                statusEl.textContent = msg;
-            });
-        });
-
-        return panel;
-    }
-
-    _getMeta(key) {
-        // Parse JSDoc meta tags from the plugin source
-        try {
-            const match = new RegExp(`@${key}\s+([^\n*]+)`).exec(module.exports.toString());
-            return match ? match[1].trim() : null;
-        } catch { return null; }
-    }
-
-    checkForUpdates(cb) {
-        const updateUrl = "https://raw.githubusercontent.com/wierdbird/wierdbird.github.io/main/BD_Deadlock_Exp_tracker/source/exp.plugin.js";
-        const currentVersion = "7.0.0";
-
-        BdApi.Net.fetch(updateUrl, { method: "GET" })
-            .then(r => r.text())
-            .then(text => {
-                const match = /@version\s+([^\n*]+)/.exec(text);
-                if (!match) return cb && cb("Could not parse remote version.", false);
-
-                const remoteVersion = match[1].trim();
-                const isNewer = this._versionIsNewer(remoteVersion, currentVersion);
-
-                if (isNewer) {
-                    BdApi.showConfirmationModal(
-                        "Update Available",
-                        `Deadlock Experimental Tracker v${remoteVersion} is available (you have v${currentVersion}). Download and replace the plugin file?`,
-                        {
-                            confirmText: "Open Download",
-                            cancelText: "Later",
-                            onConfirm: () => {
-                                // Open the raw file URL so user can save it
-                                window.open(updateUrl, "_blank");
-                            }
-                        }
-                    );
-                    cb && cb(`v${remoteVersion} available!`, true);
-                } else {
-                    cb && cb(`Up to date (v${currentVersion})`, false);
-                }
-            })
-            .catch(err => {
-                console.error("[SteamBuildTracker] Update check failed:", err);
-                cb && cb("Update check failed.", false);
-            });
-    }
-
-    _versionIsNewer(remote, current) {
-        const parse = v => v.split(".").map(Number);
-        const r = parse(remote);
-        const c = parse(current);
-        for (let i = 0; i < Math.max(r.length, c.length); i++) {
-            const rv = r[i] || 0, cv = c[i] || 0;
-            if (rv > cv) return true;
-            if (rv < cv) return false;
-        }
-        return false;
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -147,17 +62,32 @@ module.exports = class SteamBuildTracker {
         return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     }
 
+    getCurrentAppDef() {
+        return this.apps.find(a => a.id === this.currentAppId) || this.apps[0];
+    }
+
+    getState(appId = this.currentAppId) {
+        return this.appState[appId];
+    }
+
     // ─── API ──────────────────────────────────────────────────────────────────
 
-    async fetchData() {
+    async fetchData(appId) {
+        const def = this.apps.find(a => a.id === appId);
+        if (!def) return;
+        const state = this.appState[appId];
+        if (!state) return;
+
         try {
-            const response = await BdApi.Net.fetch(this.apiUrl, {
+            const response = await BdApi.Net.fetch(def.url, {
                 method: "GET",
                 headers: { "Accept": "application/json" }
             });
 
             if (!response.ok) {
-                this.updateWidget({ status: "HTTP ERR", version: null, delta: null, minVersion: null, error: `Status ${response.status}` });
+                if (appId === this.currentAppId) {
+                    this.updateWidget({ status: "HTTP ERR", ...this._buildFallback(appId), changed: false, error: `Status ${response.status}` });
+                }
                 return;
             }
 
@@ -172,76 +102,115 @@ module.exports = class SteamBuildTracker {
                     const today = this.todayKey();
 
                     // New day — save yesterday's delta then reset baseline
-                    if (this.dayKey !== today) {
-                        if (this.dayKey && this.dayBaseVersion !== null && this.lastVersion !== null) {
-                            this._upsertDailyHistory(this.dayKey, this.lastVersion - this.dayBaseVersion);
+                    if (state.dayKey !== today) {
+                        if (state.dayKey && state.dayBaseVersion !== null && state.lastVersion !== null) {
+                            this._upsertDailyHistory(state, state.dayKey, state.lastVersion - state.dayBaseVersion);
                         }
-                        this.dayKey         = today;
-                        this.dayBaseVersion = version;
+                        state.dayKey         = today;
+                        state.dayBaseVersion = version;
                         this.saveSettings();
                     }
 
-                    if (this.dayBaseVersion === null) {
-                        this.dayBaseVersion = version;
+                    if (state.dayBaseVersion === null) {
+                        state.dayBaseVersion = version;
                         this.saveSettings();
                     }
 
-                    const changed = this.lastVersion !== null && this.lastVersion !== version;
-                    this.lastVersion = version;
+                    const changed = state.lastVersion !== null && state.lastVersion !== version;
+                    state.lastVersion = version;
 
-                    if (changed) this.playAlert();
+                    if (changed && appId === this.currentAppId) this.playAlert(appId);
 
-                    const delta = version - this.dayBaseVersion;
+                    const delta = version - state.dayBaseVersion;
 
-                    this._upsertDailyHistory(today, delta);
+                    this._upsertDailyHistory(state, today, delta);
 
                     // Update ATH if this delta beats the record
-                    if (delta > this.allTimeHighDelta) {
-                        this.allTimeHighDelta = delta;
+                    if (delta > state.allTimeHighDelta) {
+                        state.allTimeHighDelta = delta;
                     }
 
+                    if (minVersion != null) state._lastMinVersion = minVersion;
+
                     this.saveSettings();
-                    this.updateWidget({ status: "LIVE", version, delta, minVersion, changed, error: null });
-                } else {
-                    this.updateWidget({ status: "NO DATA", version: null, delta: null, minVersion: null, error: "active_version missing" });
+
+                    if (appId === this.currentAppId) {
+                        this.updateWidget({ status: "LIVE", version, delta, minVersion, changed, error: null });
+                    }
+                } else if (appId === this.currentAppId) {
+                    this.updateWidget({ status: "NO DATA", ...this._buildFallback(appId), changed: false, error: "active_version missing" });
                 }
-            } else {
-                this.updateWidget({ status: "NO DATA", version: null, delta: null, minVersion: null, error: "API returned no result" });
+            } else if (appId === this.currentAppId) {
+                this.updateWidget({ status: "NO DATA", ...this._buildFallback(appId), changed: false, error: "API returned no result" });
             }
 
         } catch (err) {
-            console.error("[SteamBuildTracker] Fetch error:", err);
+            console.error("[ExpTracker] Fetch error:", err);
             const msg   = err?.message ?? String(err);
             const isNet = /net|connect|failed/i.test(msg);
-            this.updateWidget({
-                status: isNet ? "NET ERR" : "FETCH ERR",
-                version: null, delta: null, minVersion: null,
-                error: msg.slice(0, 60)
-            });
+            if (appId === this.currentAppId) {
+                this.updateWidget({
+                    status: isNet ? "NET ERR" : "FETCH ERR",
+                    ...this._buildFallback(appId),
+                                  changed: false,
+                                  error: msg.slice(0, 60)
+                });
+            }
         }
+    }
+
+    // Builds the last-known-good display values for an app, so a transient
+    // fetch error never blanks out data that's already been seen.
+    _buildFallback(appId) {
+        const state = this.appState[appId];
+        if (!state || state.lastVersion == null || state.dayBaseVersion == null) {
+            return { version: null, delta: null, minVersion: null };
+        }
+        return {
+            version: state.lastVersion,
+            delta:   state.lastVersion - state.dayBaseVersion,
+            minVersion: state._lastMinVersion
+        };
     }
 
     // ─── Alert Sound ──────────────────────────────────────────────────────────
 
-    playAlert() {
+    playAlert(appId) {
+        const def = this.apps.find(a => a.id === appId) || this.getCurrentAppDef();
+        if (!def || !def.sound) return;
+
         try {
-            const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+            const audio = new Audio(def.sound);
             audio.volume = 0.5;
-            audio.play().catch(e => console.warn("[SteamBuildTracker] Audio play failed:", e));
+
+            if (def.soundDuration) {
+                const limitMs = def.soundDuration * 1000;
+                const stopEarly = () => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                };
+                // Primary cutoff, plus a safety-net timeout in case timeupdate lags.
+                audio.addEventListener("timeupdate", () => {
+                    if (audio.currentTime * 1000 >= limitMs) stopEarly();
+                });
+                    setTimeout(stopEarly, limitMs + 100);
+            }
+
+            audio.play().catch(e => console.warn("[ExpTracker] Audio play failed:", e));
         } catch (e) {
-            console.warn("[SteamBuildTracker] Audio error:", e);
+            console.warn("[ExpTracker] Audio error:", e);
         }
     }
 
     // ─── Daily History ────────────────────────────────────────────────────────
 
-    _upsertDailyHistory(dateKey, delta) {
-        const existing = this.dailyHistory.find(e => e.date === dateKey);
+    _upsertDailyHistory(state, dateKey, delta) {
+        const existing = state.dailyHistory.find(e => e.date === dateKey);
         if (existing) {
             existing.delta = delta;
         } else {
-            this.dailyHistory.push({ date: dateKey, delta });
-            this.dailyHistory.sort((a, b) => a.date.localeCompare(b.date));
+            state.dailyHistory.push({ date: dateKey, delta });
+            state.dailyHistory.sort((a, b) => a.date.localeCompare(b.date));
         }
     }
 
@@ -251,6 +220,9 @@ module.exports = class SteamBuildTracker {
         const canvas = this.widget && this.widget.querySelector("#sbt-graph");
         if (!canvas) return;
 
+        const state = this.getState();
+        if (!state) return;
+
         const W = canvas.width  = canvas.offsetWidth  || 232;
         const H = canvas.height = canvas.offsetHeight || 90;
         const ctx = canvas.getContext("2d");
@@ -259,7 +231,7 @@ module.exports = class SteamBuildTracker {
         ctx.fillStyle = "#080909";
         ctx.fillRect(0, 0, W, H);
 
-        const history = this.dailyHistory;
+        const history = state.dailyHistory;
 
         if (history.length === 0) {
             ctx.fillStyle = "#2a2d33";
@@ -269,34 +241,11 @@ module.exports = class SteamBuildTracker {
             return;
         }
 
-        const maxBars = 10;
-
-        // Fill in any missing dates between first and last entry with delta 0
-        const fillGaps = (entries) => {
-            if (entries.length === 0) return entries;
-            const result = [];
-            const msPerDay = 86400000;
-            for (let i = 0; i < entries.length; i++) {
-                result.push(entries[i]);
-                if (i < entries.length - 1) {
-                    const cur  = new Date(entries[i].date);
-                    const next = new Date(entries[i + 1].date);
-                    let d = new Date(cur.getTime() + msPerDay);
-                    while (d < next) {
-                        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-                        result.push({ date: key, delta: 0 });
-                        d = new Date(d.getTime() + msPerDay);
-                    }
-                }
-            }
-            return result;
-        };
-
-        const filled = fillGaps(history);
-        const points = filled.slice(-maxBars).slice(0, maxBars); // hard cap
+        const maxBars = 7;
+        const points  = history.slice(-maxBars);
         const n       = points.length;
 
-        const padT  = 18;
+        const padT  = 20;
         const padB  = 14;
         const padLR = 4;
         const innerW = W - padLR * 2;
@@ -318,16 +267,16 @@ module.exports = class SteamBuildTracker {
             const y  = padT + innerH - bH;
 
             // ATH bar is gold, active bars white, zero bars near-invisible
-            const isATH = delta > 0 && delta === this.allTimeHighDelta;
+            const isATH = delta > 0 && delta === state.allTimeHighDelta;
             ctx.fillStyle = isATH ? "#f0b232" : (delta === 0 ? "#1e2030" : "#ffffff");
             ctx.fillRect(x, y, barW, bH);
 
             // Delta label above bar
             const label = delta === 0 ? "0" : (delta > 0 ? "+" + delta : String(delta));
-            ctx.font      = "7px Consolas, monospace";
+            ctx.font      = "bold 10px Consolas, monospace";
             ctx.textAlign = "center";
             ctx.fillStyle = isATH ? "#f0b232" : (delta === 0 ? "#2a2d33" : "#9ba3b8");
-            ctx.fillText(label, x + barW / 2, Math.max(y - 2, padT - 2));
+            ctx.fillText(label, x + barW / 2, Math.max(y - 3, padT - 3));
 
             // Date label below
             const [, mm, dd] = date.split("-");
@@ -346,45 +295,98 @@ module.exports = class SteamBuildTracker {
         this.styleEl.id = "steam-build-tracker-styles";
         this.styleEl.textContent = `
         #sbt-widget {
-            position: fixed;
-            width: 260px;
-            background: #0d0e10;
-            border: 1px solid #1a1c1f;
-            border-radius: 10px;
-            z-index: 99999;
-            color: #c9cdd3;
-            font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
-            font-size: 12px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
-            overflow: hidden;
-            cursor: grab;
-            user-select: none;
-            transition: box-shadow 0.15s ease;
+        position: fixed;
+        width: 260px;
+        background: #0d0e10;
+        border: 1px solid #1a1c1f;
+        border-radius: 10px;
+        z-index: 99999;
+        color: #c9cdd3;
+        font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+        font-size: 12px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+        overflow: hidden;
+        cursor: grab;
+        user-select: none;
+        transition: box-shadow 0.15s ease;
         }
         #sbt-widget:hover {
-            box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(88,101,242,0.3);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(88,101,242,0.3);
         }
         #sbt-widget.dragging {
-            cursor: grabbing;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(88,101,242,0.5);
+        cursor: grabbing;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.9), 0 0 0 1px rgba(88,101,242,0.5);
         }
         #sbt-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 14px 8px;
-            border-bottom: 1px solid #1a1c1f;
-            background: #111214;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 14px 8px;
+        border-bottom: 1px solid #1a1c1f;
+        background: #111214;
         }
-        #sbt-title  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #7114e3; text-transform: uppercase; }
+        #sbt-title  { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #7114e3; text-transform: uppercase; flex-shrink: 0; }
+        #sbt-app-dropdown {
+        position: relative;
+        flex-shrink: 0;
+        margin-left: auto;
+        }
+        #sbt-app-dropdown-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #0a0b0d;
+        color: #c9cdd3;
+        border: 1px solid #1a1c1f;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 9px;
+        letter-spacing: 0.3px;
+        padding: 4px 6px;
+        max-width: 132px;
+        cursor: pointer;
+        outline: none;
+        transition: all 0.15s ease;
+        }
+        #sbt-app-dropdown-btn:hover,
+        #sbt-app-dropdown-btn.open { border-color: #0212c2; color: #0212c2; }
+        #sbt-app-dropdown-label {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        #sbt-app-dropdown-caret { font-size: 8px; flex-shrink: 0; color: #3c3f45; }
+        #sbt-app-dropdown-list {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        min-width: 168px;
+        background: #111214;
+        border: 1px solid #1a1c1f;
+        border-radius: 6px;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.8);
+        z-index: 100000;
+        overflow: hidden;
+        display: none;
+        }
+        #sbt-app-dropdown-list.open { display: block; }
+        .sbt-app-option {
+            padding: 7px 10px;
+            font-size: 10px;
+            color: #c9cdd3;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        .sbt-app-option:hover   { background: rgba(2,18,194,0.15); color: #ffffff; }
+        .sbt-app-option.active  { color: #7114e3; font-weight: 700; }
         #sbt-appid  { font-size: 9px; color: #3c3f45; letter-spacing: 0.5px; }
         #sbt-status-row {
-            display: flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-bottom: 1px solid #1a1c1f;
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 14px; border-bottom: 1px solid #1a1c1f;
         }
         #sbt-dot {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: #038028; flex-shrink: 0; transition: background 0.3s ease;
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #038028; flex-shrink: 0; transition: background 0.3s ease;
         }
         #sbt-dot.error    { background: #b80206; animation: none; }
         #sbt-dot.live     { background: #038028; animation: sbt-pulse 2s infinite; }
@@ -395,10 +397,10 @@ module.exports = class SteamBuildTracker {
         #sbt-status-text.live  { color: #038028; }
         #sbt-status-text.error { color: #b80206; }
         #sbt-body {
-            padding: 10px 14px 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 12px;
+        padding: 10px 14px 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
         }
         .sbt-field { }
         .sbt-label {
@@ -415,44 +417,45 @@ module.exports = class SteamBuildTracker {
             100% { color: #ffffff; text-shadow: none; }
         }
         .sbt-value.placeholder { color: #2a2d33; }
+        .sbt-value.stale       { opacity: 0.55; }
         .sbt-value.delta-zero  { color: #5c6068; }
         .sbt-value.delta-pos   { color: #23a55a; }
         .sbt-value.delta-neg   { color: #b50206; }
         .sbt-value.delta-ath   { color: #f0b232; }
         .sbt-value.small       { font-size: 14px; }
         #sbt-advanced-section {
-            border-top: 1px solid #1a1c1f;
-            padding: 10px 14px 12px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 12px;
-            background: #0a0b0d;
+        border-top: 1px solid #1a1c1f;
+        padding: 10px 14px 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        background: #0a0b0d;
         }
         #sbt-graph-section {
-            border-top: 1px solid #1a1c1f;
-            padding: 10px 14px 10px;
-            background: #080909;
+        border-top: 1px solid #1a1c1f;
+        padding: 10px 14px 10px;
+        background: #080909;
         }
         #sbt-graph-label {
-            font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
-            font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
+        font-size: 9px; letter-spacing: 1.2px; color: #3c3f45;
+        font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
         }
         #sbt-graph {
-            display: block;
-            width: 100%;
-            height: 90px;
-            border-radius: 4px;
+        display: block;
+        width: 100%;
+        height: 90px;
+        border-radius: 4px;
         }
         #sbt-error-msg {
-            font-size: 10px; color: #f23f43; margin-top: 4px;
-            display: none; word-break: break-all;
-            grid-column: 1 / -1;
+        font-size: 10px; color: #f23f43; margin-top: 4px;
+        display: none; word-break: break-all;
+        grid-column: 1 / -1;
         }
         #sbt-footer {
-            padding: 6px 14px 8px;
-            border-top: 1px solid #1a1c1f;
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 6px;
+        padding: 6px 14px 8px;
+        border-top: 1px solid #1a1c1f;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 6px;
         }
         #sbt-time-label { font-size: 9px; color: #2a2d33; letter-spacing: 0.5px; }
         #sbt-time       { font-size: 9px; color: #3c3f45; }
@@ -476,51 +479,60 @@ module.exports = class SteamBuildTracker {
         this.widget.style.top  = `${this.pos.y}px`;
         this.widget.style.left = `${this.pos.x}px`;
 
+        const currentDef = this.getCurrentAppDef();
+        const optionsHtml = this.apps.map(a =>
+        `<div class="sbt-app-option${a.id === this.currentAppId ? " active" : ""}" data-app-id="${a.id}">${a.name}</div>`
+        ).join("");
+
         this.widget.innerHTML = `
-            <div id="sbt-header">
-                <div style="display:flex;flex-direction:column;gap:1px;">
-                    <span id="sbt-title">Experimental Tracker</span>
-                    <span id="sbt-version-label" style="font-size:8px;color:#3c3f45;letter-spacing:0.5px;">v${this._getMeta("version") || "7.0.0"}</span>
-                </div>
-                <span id="sbt-appid">APP ${this.appId}</span>
-            </div>
-            <div id="sbt-status-row">
-                <div id="sbt-dot" class="fetching"></div>
-                <span id="sbt-status-text">POLLING…</span>
-            </div>
-            <div id="sbt-body">
-                <div class="sbt-field">
-                    <div class="sbt-label">Active Version</div>
-                    <div class="sbt-value placeholder" id="sbt-version">—</div>
-                </div>
-                <div class="sbt-field">
-                    <div class="sbt-label">Today's Delta</div>
-                    <div class="sbt-value placeholder" id="sbt-delta">—</div>
-                </div>
-                <div id="sbt-error-msg"></div>
-            </div>
-            <div id="sbt-advanced-section" style="display:none">
-                <div class="sbt-field">
-                    <div class="sbt-label">ATH Delta</div>
-                    <div class="sbt-value delta-ath" id="sbt-ath">—</div>
-                </div>
-                <div class="sbt-field">
-                    <div class="sbt-label">Min Allowed Ver</div>
-                    <div class="sbt-value small placeholder" id="sbt-minver">—</div>
-                </div>
-            </div>
-            <div id="sbt-graph-section" style="display:none">
-                <div id="sbt-graph-label">Daily Version Jumps</div>
-                <canvas id="sbt-graph"></canvas>
-            </div>
-            <div id="sbt-footer">
-                <div>
-                    <span id="sbt-time-label">UPDATED </span>
-                    <span id="sbt-time">—</span>
-                </div>
-                <button id="sbt-advanced-btn" class="sbt-btn">ADVANCED</button>
-                <button id="sbt-refresh-btn" class="sbt-btn">↻ REFRESH</button>
-            </div>
+        <div id="sbt-header">
+        <span id="sbt-title">Experimental Tracker</span>
+        <span id="sbt-appid">APP ${this.currentAppId}</span>
+        </div>
+        <div id="sbt-status-row">
+        <div id="sbt-dot" class="fetching"></div>
+        <span id="sbt-status-text">POLLING…</span>
+        <div id="sbt-app-dropdown">
+        <button type="button" id="sbt-app-dropdown-btn">
+        <span id="sbt-app-dropdown-label">${currentDef.name}</span>
+        <span id="sbt-app-dropdown-caret">▾</span>
+        </button>
+        <div id="sbt-app-dropdown-list">${optionsHtml}</div>
+        </div>
+        </div>
+        <div id="sbt-body">
+        <div class="sbt-field">
+        <div class="sbt-label">Active Version</div>
+        <div class="sbt-value placeholder" id="sbt-version">—</div>
+        </div>
+        <div class="sbt-field">
+        <div class="sbt-label">Today's Delta</div>
+        <div class="sbt-value placeholder" id="sbt-delta">—</div>
+        </div>
+        <div id="sbt-error-msg"></div>
+        </div>
+        <div id="sbt-advanced-section" style="display:none">
+        <div class="sbt-field">
+        <div class="sbt-label">ATH Delta</div>
+        <div class="sbt-value delta-ath" id="sbt-ath">—</div>
+        </div>
+        <div class="sbt-field">
+        <div class="sbt-label">Min Allowed Ver</div>
+        <div class="sbt-value placeholder" id="sbt-minver">—</div>
+        </div>
+        </div>
+        <div id="sbt-graph-section" style="display:none">
+        <div id="sbt-graph-label">Daily Version Jumps</div>
+        <canvas id="sbt-graph"></canvas>
+        </div>
+        <div id="sbt-footer">
+        <div>
+        <span id="sbt-time-label">UPDATED </span>
+        <span id="sbt-time">—</span>
+        </div>
+        <button id="sbt-advanced-btn" class="sbt-btn">ADVANCED</button>
+        <button id="sbt-refresh-btn" class="sbt-btn">↻ REFRESH</button>
+        </div>
         `;
 
         document.body.appendChild(this.widget);
@@ -528,7 +540,7 @@ module.exports = class SteamBuildTracker {
         this.widget.querySelector("#sbt-refresh-btn").addEventListener("click", (e) => {
             e.stopPropagation();
             this.setFetching();
-            this.fetchData();
+            this.fetchAllApps();
         });
 
         this.widget.querySelector("#sbt-advanced-btn").addEventListener("click", (e) => {
@@ -540,7 +552,95 @@ module.exports = class SteamBuildTracker {
             if (this.advancedMode) this.renderGraph();
         });
 
-        this.setupDragging();
+            const dropdownBtn  = this.widget.querySelector("#sbt-app-dropdown-btn");
+            const dropdownList = this.widget.querySelector("#sbt-app-dropdown-list");
+
+            dropdownBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+            dropdownList.addEventListener("mousedown", (e) => e.stopPropagation());
+
+            dropdownBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                this.toggleAppDropdown();
+            });
+
+            dropdownList.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const option = e.target.closest(".sbt-app-option");
+                if (!option) return;
+                this.closeAppDropdown();
+                this.switchApp(option.dataset.appId);
+            });
+
+            // Close the dropdown when clicking anywhere outside of it
+            this._onDocClick = (e) => {
+                if (!this.widget) return;
+                if (!this.widget.querySelector("#sbt-app-dropdown").contains(e.target)) {
+                    this.closeAppDropdown();
+                }
+            };
+            document.addEventListener("mousedown", this._onDocClick);
+
+            this._applyAdvancedVisibility();
+            this.setupDragging();
+    }
+
+    toggleAppDropdown() {
+        const btn  = this.widget.querySelector("#sbt-app-dropdown-btn");
+        const list = this.widget.querySelector("#sbt-app-dropdown-list");
+        const isOpen = list.classList.contains("open");
+        if (isOpen) {
+            list.classList.remove("open");
+            btn.classList.remove("open");
+        } else {
+            list.classList.add("open");
+            btn.classList.add("open");
+        }
+    }
+
+    closeAppDropdown() {
+        if (!this.widget) return;
+        const btn  = this.widget.querySelector("#sbt-app-dropdown-btn");
+        const list = this.widget.querySelector("#sbt-app-dropdown-list");
+        if (list) list.classList.remove("open");
+        if (btn)  btn.classList.remove("open");
+    }
+
+    switchApp(appId) {
+        if (!this.appState[appId] || appId === this.currentAppId) return;
+
+        this.currentAppId = appId;
+        this.saveSettings();
+
+        // Update the dropdown button label + highlighted option
+        if (this.widget) {
+            const def = this.getCurrentAppDef();
+            const labelEl = this.widget.querySelector("#sbt-app-dropdown-label");
+            if (labelEl) labelEl.textContent = def.name;
+
+            this.widget.querySelectorAll(".sbt-app-option").forEach(opt => {
+                opt.classList.toggle("active", opt.dataset.appId === appId);
+            });
+        }
+
+        // Show cached data for this app immediately, then refresh live
+        this.restoreCachedView();
+        this.setFetching();
+        this.fetchData(appId);
+    }
+
+    restoreCachedView() {
+        if (!this.widget) return;
+        const state = this.getState();
+
+        const appIdEl = this.widget.querySelector("#sbt-appid");
+        if (appIdEl) appIdEl.textContent = `APP ${this.currentAppId}`;
+
+        if (state && state.lastVersion != null && state.dayBaseVersion != null) {
+            const delta = state.lastVersion - state.dayBaseVersion;
+            this.updateWidget({ status: "LIVE", version: state.lastVersion, delta, minVersion: state._lastMinVersion, changed: false, error: null });
+        } else {
+            this.updateWidget({ status: "NO DATA", version: null, delta: null, minVersion: null, error: null });
+        }
     }
 
     _applyAdvancedVisibility() {
@@ -561,22 +661,28 @@ module.exports = class SteamBuildTracker {
 
     refreshAdvancedFields() {
         if (!this.widget) return;
+        const state = this.getState();
+        if (!state) return;
         const athEl    = this.widget.querySelector("#sbt-ath");
         const minVerEl = this.widget.querySelector("#sbt-minver");
         if (athEl) {
-            athEl.textContent = this.formatDelta(this.allTimeHighDelta);
+            athEl.textContent = this.formatDelta(state.allTimeHighDelta);
         }
-        if (minVerEl && this._lastMinVersion != null) {
-            minVerEl.textContent = String(this._lastMinVersion);
-            minVerEl.className   = "sbt-value small";
+        if (minVerEl && state._lastMinVersion != null) {
+            minVerEl.textContent = String(state._lastMinVersion);
+            minVerEl.className   = "sbt-value";
         }
     }
 
     updateWidget({ status, version, delta, minVersion, changed = false, error }) {
         if (!this.widget) return;
         const isLive = status === "LIVE";
+        const state  = this.getState();
 
-        if (minVersion != null) this._lastMinVersion = minVersion;
+        if (minVersion != null && state) state._lastMinVersion = minVersion;
+
+        const appIdEl = this.widget.querySelector("#sbt-appid");
+        if (appIdEl) appIdEl.textContent = `APP ${this.currentAppId}`;
 
         const dot      = this.widget.querySelector("#sbt-dot");
         const statusEl = this.widget.querySelector("#sbt-status-text");
@@ -585,10 +691,10 @@ module.exports = class SteamBuildTracker {
         statusEl.className   = isLive ? "live" : "error";
 
         const verEl = this.widget.querySelector("#sbt-version");
-        if (isLive && version !== null) {
+        if (version !== null) {
             verEl.textContent = String(version);
-            verEl.className   = "sbt-value";
-            if (changed) {
+            verEl.className   = isLive ? "sbt-value" : "sbt-value stale";
+            if (changed && isLive) {
                 void verEl.offsetWidth;
                 verEl.className = "sbt-value changed";
             }
@@ -598,11 +704,10 @@ module.exports = class SteamBuildTracker {
         }
 
         const deltaEl = this.widget.querySelector("#sbt-delta");
-        if (isLive && delta !== null) {
+        if (delta !== null) {
             deltaEl.textContent = this.formatDelta(delta);
-            deltaEl.className   = delta > 0 ? "sbt-value delta-pos"
-                                : delta < 0 ? "sbt-value delta-neg"
-                                :             "sbt-value delta-zero";
+            const deltaClass = delta > 0 ? "delta-pos" : delta < 0 ? "delta-neg" : "delta-zero";
+            deltaEl.className = isLive ? `sbt-value ${deltaClass}` : `sbt-value ${deltaClass} stale`;
         } else {
             deltaEl.textContent = "—";
             deltaEl.className   = "sbt-value placeholder";
@@ -623,15 +728,18 @@ module.exports = class SteamBuildTracker {
             const athEl    = this.widget.querySelector("#sbt-ath");
             const minVerEl = this.widget.querySelector("#sbt-minver");
 
-            if (athEl) athEl.textContent = this.formatDelta(this.allTimeHighDelta);
+            if (athEl && state) athEl.textContent = this.formatDelta(state.allTimeHighDelta);
 
             if (minVerEl) {
                 if (isLive && minVersion != null) {
                     minVerEl.textContent = String(minVersion);
-                    minVerEl.className   = "sbt-value small";
+                    minVerEl.className   = "sbt-value";
+                } else if (minVersion == null && state && state._lastMinVersion != null) {
+                    minVerEl.textContent = String(state._lastMinVersion);
+                    minVerEl.className   = "sbt-value";
                 } else if (minVersion == null) {
                     minVerEl.textContent = "N/A";
-                    minVerEl.className   = "sbt-value small placeholder";
+                    minVerEl.className   = "sbt-value placeholder";
                 }
             }
 
@@ -665,6 +773,7 @@ module.exports = class SteamBuildTracker {
 
         this.widget.addEventListener("mousedown", (e) => {
             if (e.target.classList.contains("sbt-btn")) return;
+            if (e.target.closest("#sbt-app-dropdown")) return;
             this.isDragging = true;
             this.widget.classList.add("dragging");
             const rect = this.widget.getBoundingClientRect();
@@ -679,11 +788,19 @@ module.exports = class SteamBuildTracker {
 
     startTracking() {
         this.setFetching();
-        this.fetchData();
+        this.fetchAllApps();
         this.timer = setInterval(() => {
             this.setFetching();
-            this.fetchData();
+            this.fetchAllApps();
         }, this.updateInterval);
+    }
+
+    fetchAllApps() {
+        // Poll every tracked app in the background, regardless of which one is currently
+        // displayed, so switching the dropdown always shows up-to-date data instantly.
+        for (const def of this.apps) {
+            this.fetchData(def.id);
+        }
     }
 
     stopTracking() {
@@ -692,32 +809,73 @@ module.exports = class SteamBuildTracker {
 
     // ─── Persistence ──────────────────────────────────────────────────────────
 
+    _defaultState(appId) {
+        // Only the original tracked app (3488080) has a known ATH record; every other app starts at 0.
+        const seededATH = appId === "3488080" ? 36 : 0;
+        return {
+            lastVersion:       null,
+            dayBaseVersion:    null,
+            dayKey:            null,
+            allTimeHighDelta:  seededATH,
+            dailyHistory:      [],
+            _lastMinVersion:   null
+        };
+    }
+
     loadSettings() {
+        // Seed default state for every known app
+        for (const def of this.apps) {
+            this.appState[def.id] = this._defaultState(def.id);
+        }
+
         try {
-            const saved = BdApi.Data.load("SteamBuildTracker", "settings");
+            const saved = BdApi.Data.load("ExpTracker", "settings");
             if (saved) {
-                if (saved.pos)                         this.pos              = saved.pos;
-                if (saved.dayKey)                      this.dayKey           = saved.dayKey;
-                if (saved.dayBaseVersion != null)      this.dayBaseVersion   = saved.dayBaseVersion;
-                if (saved.allTimeHighDelta != null)    this.allTimeHighDelta = saved.allTimeHighDelta;
-                if (saved.advancedMode != null)        this.advancedMode     = saved.advancedMode;
-                if (Array.isArray(saved.dailyHistory)) this.dailyHistory     = saved.dailyHistory;
+                if (saved.pos)                  this.pos          = saved.pos;
+                if (saved.advancedMode != null) this.advancedMode = saved.advancedMode;
+                if (saved.currentAppId && this.apps.some(a => a.id === saved.currentAppId)) {
+                    this.currentAppId = saved.currentAppId;
+                }
+
+                if (saved.appState) {
+                    // New multi-app format
+                    for (const id of Object.keys(saved.appState)) {
+                        if (this.appState[id]) {
+                            this.appState[id] = { ...this.appState[id], ...saved.appState[id] };
+                        }
+                    }
+                } else if (saved.dayKey !== undefined || saved.allTimeHighDelta !== undefined) {
+                    // Migrate old single-app (v6.x) settings into the original app slot
+                    const legacy = this.appState["3488080"];
+                    if (saved.dayKey)                      legacy.dayKey           = saved.dayKey;
+                    if (saved.dayBaseVersion != null)      legacy.dayBaseVersion   = saved.dayBaseVersion;
+                    if (saved.allTimeHighDelta != null)    legacy.allTimeHighDelta = saved.allTimeHighDelta;
+                    if (Array.isArray(saved.dailyHistory)) legacy.dailyHistory     = saved.dailyHistory;
+                }
             }
-        } catch (e) { console.log("[SteamBuildTracker] Using default settings."); }
+        } catch (e) { console.log("[ExpTracker] Using default settings."); }
 
-
+        // Ensure every app has a dayKey seeded so the first fetch establishes a baseline
+        for (const id of Object.keys(this.appState)) {
+            const st = this.appState[id];
+            if (st.dayBaseVersion === null && !st.dayKey) {
+                st.dayKey = this.todayKey();
+            }
+            const floor = id === "3488080" ? 36 : 0;
+            if (st.allTimeHighDelta < floor) {
+                st.allTimeHighDelta = floor;
+            }
+        }
     }
 
     saveSettings() {
         try {
-            BdApi.Data.save("SteamBuildTracker", "settings", {
-                pos:              this.pos,
-                dayKey:           this.dayKey,
-                dayBaseVersion:   this.dayBaseVersion,
-                allTimeHighDelta: this.allTimeHighDelta,
-                advancedMode:     this.advancedMode,
-                dailyHistory:     this.dailyHistory
+            BdApi.Data.save("ExpTracker", "settings", {
+                pos:           this.pos,
+                currentAppId:  this.currentAppId,
+                advancedMode:  this.advancedMode,
+                appState:      this.appState
             });
-        } catch (e) { console.error("[SteamBuildTracker] Failed to save settings:", e); }
+        } catch (e) { console.error("[ExpTracker] Failed to save settings:", e); }
     }
 };
