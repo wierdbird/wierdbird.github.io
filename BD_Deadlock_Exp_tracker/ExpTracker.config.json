@@ -1,21 +1,89 @@
 {
     "settings": {
         "pos": {
-            "x": 40,
-            "y": 100
+            "x": 1034.55908203125,
+            "y": 85.47917175292969
         },
-        "currentAppId": "3488080",
-        "advancedMode": false,
+        "currentAppId": "1422450",
+        "advancedMode": true,
         "appState": {
             "1422450": {
                 "lastVersion": 6640,
-                "dayBaseVersion": 6640,
+                "dayBaseVersion": 6639,
                 "dayKey": "2026-07-25",
-                "allTimeHighDelta": 0,
+                "allTimeHighDelta": 5,
                 "dailyHistory": [
                     {
-                        "date": "2026-07-25",
+                        "date": "2026-07-08",
                         "delta": 0
+                    },
+                    {
+                        "date": "2026-07-09",
+                        "delta": 4
+                    },
+                    {
+                        "date": "2026-07-10",
+                        "delta": 1
+                    },
+                    {
+                        "date": "2026-07-11",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-12",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-13",
+                        "delta": 5
+                    },
+                    {
+                        "date": "2026-07-14",
+                        "delta": 1
+                    },
+                    {
+                        "date": "2026-07-15",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-16",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-17",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-18",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-19",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-20",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-21",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-22",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-23",
+                        "delta": 2
+                    },
+                    {
+                        "date": "2026-07-24",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-25",
+                        "delta": 1
                     }
                 ],
                 "_lastMinVersion": 6640
@@ -24,8 +92,76 @@
                 "lastVersion": 5822,
                 "dayBaseVersion": 5822,
                 "dayKey": "2026-07-25",
-                "allTimeHighDelta": 0,
+                "allTimeHighDelta": 22,
                 "dailyHistory": [
+                    {
+                        "date": "2026-07-08",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-09",
+                        "delta": 12
+                    },
+                    {
+                        "date": "2026-07-10",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-11",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-12",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-13",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-14",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-15",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-16",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-17",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-18",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-19",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-20",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-21",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-22",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-23",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-24",
+                        "delta": 22
+                    },
                     {
                         "date": "2026-07-25",
                         "delta": 0
@@ -35,13 +171,81 @@
             },
             "3488080": {
                 "lastVersion": 1968,
-                "dayBaseVersion": 1968,
+                "dayBaseVersion": 1959,
                 "dayKey": "2026-07-25",
                 "allTimeHighDelta": 36,
                 "dailyHistory": [
                     {
-                        "date": "2026-07-25",
+                        "date": "2026-07-08",
                         "delta": 0
+                    },
+                    {
+                        "date": "2026-07-09",
+                        "delta": 2
+                    },
+                    {
+                        "date": "2026-07-10",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-11",
+                        "delta": 6
+                    },
+                    {
+                        "date": "2026-07-12",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-13",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-14",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-15",
+                        "delta": 4
+                    },
+                    {
+                        "date": "2026-07-16",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-17",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-18",
+                        "delta": 6
+                    },
+                    {
+                        "date": "2026-07-19",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-20",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-21",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-22",
+                        "delta": 6
+                    },
+                    {
+                        "date": "2026-07-23",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-24",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-25",
+                        "delta": 9
                     }
                 ],
                 "_lastMinVersion": 1968
@@ -52,6 +256,74 @@
                 "dayKey": "2026-07-25",
                 "allTimeHighDelta": 0,
                 "dailyHistory": [
+                    {
+                        "date": "2026-07-08",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-09",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-10",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-11",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-12",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-13",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-14",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-15",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-16",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-17",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-18",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-19",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-20",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-21",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-22",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-23",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-24",
+                        "delta": 0
+                    },
                     {
                         "date": "2026-07-25",
                         "delta": 0
