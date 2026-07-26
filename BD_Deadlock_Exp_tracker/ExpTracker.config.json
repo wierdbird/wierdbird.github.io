@@ -1,11 +1,11 @@
 {
     "settings": {
         "pos": {
-            "x": 1034.55908203125,
-            "y": 85.47917175292969
+            "x": 1823.5487060546875,
+            "y": 166.46875762939453
         },
         "currentAppId": "1422450",
-        "advancedMode": true,
+        "advancedMode": false,
         "appState": {
             "1422450": {
                 "lastVersion": 6640,
