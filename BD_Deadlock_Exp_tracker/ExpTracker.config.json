@@ -1,16 +1,16 @@
 {
     "settings": {
         "pos": {
-            "x": 1823.5487060546875,
-            "y": 166.46875762939453
+            "x": 1559.4097900390625,
+            "y": 195.30208587646484
         },
-        "currentAppId": "1422450",
-        "advancedMode": false,
+        "currentAppId": "3125160",
+        "advancedMode": true,
         "appState": {
             "1422450": {
                 "lastVersion": 6640,
-                "dayBaseVersion": 6639,
-                "dayKey": "2026-07-25",
+                "dayBaseVersion": 6640,
+                "dayKey": "2026-07-27",
                 "allTimeHighDelta": 5,
                 "dailyHistory": [
                     {
@@ -84,14 +84,22 @@
                     {
                         "date": "2026-07-25",
                         "delta": 1
+                    },
+                    {
+                        "date": "2026-07-26",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-27",
+                        "delta": 0
                     }
                 ],
                 "_lastMinVersion": 6640
             },
             "3125160": {
-                "lastVersion": 5822,
-                "dayBaseVersion": 5822,
-                "dayKey": "2026-07-25",
+                "lastVersion": 5833,
+                "dayBaseVersion": 5828,
+                "dayKey": "2026-07-27",
                 "allTimeHighDelta": 22,
                 "dailyHistory": [
                     {
@@ -165,14 +173,22 @@
                     {
                         "date": "2026-07-25",
                         "delta": 0
+                    },
+                    {
+                        "date": "2026-07-26",
+                        "delta": 6
+                    },
+                    {
+                        "date": "2026-07-27",
+                        "delta": 5
                     }
                 ],
                 "_lastMinVersion": null
             },
             "3488080": {
-                "lastVersion": 1968,
-                "dayBaseVersion": 1959,
-                "dayKey": "2026-07-25",
+                "lastVersion": 1970,
+                "dayBaseVersion": 1970,
+                "dayKey": "2026-07-27",
                 "allTimeHighDelta": 36,
                 "dailyHistory": [
                     {
@@ -246,15 +262,23 @@
                     {
                         "date": "2026-07-25",
                         "delta": 9
+                    },
+                    {
+                        "date": "2026-07-26",
+                        "delta": 2
+                    },
+                    {
+                        "date": "2026-07-27",
+                        "delta": 0
                     }
                 ],
-                "_lastMinVersion": 1968
+                "_lastMinVersion": 1970
             },
             "3781850": {
-                "lastVersion": 24,
+                "lastVersion": 27,
                 "dayBaseVersion": 24,
-                "dayKey": "2026-07-25",
-                "allTimeHighDelta": 0,
+                "dayKey": "2026-07-27",
+                "allTimeHighDelta": 3,
                 "dailyHistory": [
                     {
                         "date": "2026-07-08",
@@ -327,9 +351,17 @@
                     {
                         "date": "2026-07-25",
                         "delta": 0
+                    },
+                    {
+                        "date": "2026-07-26",
+                        "delta": 0
+                    },
+                    {
+                        "date": "2026-07-27",
+                        "delta": 3
                     }
                 ],
-                "_lastMinVersion": 24
+                "_lastMinVersion": 27
             }
         }
     }
